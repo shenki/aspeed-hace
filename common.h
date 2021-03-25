@@ -24,6 +24,7 @@ static void udelay(int num)
 ({ \
  	while (1) { \
  		val = readl(addr); \
+		printf("isr: %08x\n", val); \
 		if (cond) \
 			break; \
 	} \

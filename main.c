@@ -45,7 +45,7 @@ int main()
 			MAP_SHARED,
 			fd, ASPEED_IO_BASE);
 	if (map == MAP_FAILED)
-		errx(1, "map failed");
+		errx(1, "io registers map failed");
 
 	// do bad things to dram
 	buf = mmap(NULL, 0x2000,
@@ -53,7 +53,7 @@ int main()
 			MAP_SHARED,
 			fd, 0x80000000);
 	if (buf == MAP_FAILED)
-		errx(1, "map failed");
+		errx(1, "ram map failed");
 	memcpy(buf, test_input, sizeof(test_input));
 
 	hw_sha512((void *)0x80000000, sizeof(test_input), (void *)0x80001000, 1024);
