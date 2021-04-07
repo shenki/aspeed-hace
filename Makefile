@@ -3,7 +3,7 @@ CFLAGS	= -Wall -O3 -ggdb
 CC	= arm-linux-gnueabi-gcc
 LDFLAGS = -static
 
-OBJ = aspeed_hace.o main.o hexdump.o
+OBJ = aspeed_hace.o main.o
 
 aspeed_hace: $(OBJ)
 

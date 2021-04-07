@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 			fd, RAM_BASE);
 	if (buf == MAP_FAILED)
 		errx(1, "ram map failed");
-	printf("copying %d bytes from %p to 0x%08x\n", length, test_input, buf);
+	printf("copying %d bytes from %p to %p\n", length, test_input, buf);
 	memcpy(buf, test_input, length);
 
 	hw_sha512((void *)RAM_BASE, length, (void *)DEST_BUF, 1024);
