@@ -1,11 +1,20 @@
 /*
  * (C) Copyright ASPEED Technology Inc.
- * Copyright 2021 IBM Corp.
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
 
 #include "common.h"
+#if 0
+#include <log.h>
+#include <asm/io.h>
+#include <malloc.h>
+
+#include <linux/bitops.h>
+#include <linux/delay.h>
+#include <linux/kernel.h>
+#include <linux/iopoll.h>
+#endif
 
 #include "aspeed_hace.h"
 
@@ -80,4 +89,108 @@ void hw_sha512(const unsigned char *pbuf, unsigned int buf_len,
 	rc = digest_object(pbuf, buf_len, pout, HACE_ALGO_SHA512);
 	if (rc)
 		debug("HACE failure\n");
+}
+
+int aspeed_sg_digest(struct aspeed_sg_list *src_list,
+					 unsigned int list_length, unsigned int length,
+					 void *digest, unsigned int method)
+{
+	writel((u32)src_list, ASPEED_HACE_HASH_SRC);
+	writel((u32)digest, ASPEED_HACE_HASH_DIGEST_BUFF);
+	writel(length, ASPEED_HACE_HASH_DATA_LEN);
+	writel(HACE_SHA_BE_EN | HACE_SG_EN | method, ASPEED_HACE_HASH_CMD);
+
+	return ast_hace_wait_isr(ASPEED_HACE_STS, HACE_HASH_ISR, 100000);
+}
+
+int hw_sha_init(struct hash_algo *algo, void **ctxp)
+{
+	u32 method, digest_size;
+	struct aspeed_hash_ctx *hash_ctx;
+		
+	if (!strcmp(algo->name, "sha1")) {
+		method = HACE_ALGO_SHA1;
+		digest_size = 20;
+	}
+	else if (!strcmp(algo->name, "sha256")) {
+		method = HACE_ALGO_SHA256;
+		digest_size = 32;
+	}
+	else if (!strcmp(algo->name, "sha512")) {
+		method = HACE_ALGO_SHA512;
+		digest_size = 64;
+	}
+	else  {
+		return -EINVAL;
+	}
+
+	hash_ctx = memalign(8, sizeof(struct aspeed_hash_ctx));
+
+	if (hash_ctx == NULL) {
+		debug("Cannot allocate memory for context\n");
+		return -ENOMEM;
+	}
+	hash_ctx->method = method;
+	hash_ctx->sg_num = 0;
+	hash_ctx->len = 0;
+	hash_ctx->digest_size = digest_size;
+	*ctxp = hash_ctx;
+
+	return 0;
+}
+
+int hw_sha_update(struct hash_algo *algo, void *ctx, const void *buf,
+			    unsigned int size, int is_last)
+{
+	struct aspeed_hash_ctx *hash_ctx = ctx;
+
+	if (hash_ctx->sg_num >= MAX_SG_32) {
+		debug("HACE error: Reached maximum number of hash segments (%u)\n",
+			  MAX_SG_32);
+		free(ctx);
+		return -EINVAL;
+	}
+	hash_ctx->sg_tbl[hash_ctx->sg_num].phy_addr = (u32)buf;
+	hash_ctx->sg_tbl[hash_ctx->sg_num].len = size;
+	if (is_last)
+		hash_ctx->sg_tbl[hash_ctx->sg_num].len |= BIT(31);
+	hash_ctx->sg_num++;
+	hash_ctx->len += size;
+
+	return 0;
+}
+
+int hw_sha_finish(struct hash_algo *algo, void *ctx, void *dest_buf,
+		     int size)
+{
+	struct aspeed_hash_ctx *hash_ctx = ctx;
+	void *digest = NULL;
+	int rc;
+
+	if (size < hash_ctx->digest_size) {
+		debug("HACE error: insufficient size on destination buffer\n");
+		rc = -EINVAL;
+		goto cleanup;
+	}
+	digest = memalign(8, hash_ctx->digest_size);
+	
+	if (digest == NULL) {
+		debug("HACE error: Cannot allocate memory for digest buffer\n");
+		rc = -ENOMEM;
+		goto cleanup;
+	}
+
+	rc = aspeed_sg_digest(hash_ctx->sg_tbl, hash_ctx->sg_num,
+						  hash_ctx->len, digest, hash_ctx->method);
+	if (rc)
+		debug("HACE Scatter-Gather failure\n");
+	else
+		memcpy(dest_buf, digest, hash_ctx->digest_size);
+
+cleanup:
+	if (digest)
+		free(digest);
+	free(ctx);
+
+	return rc;
 }

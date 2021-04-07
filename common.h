@@ -2,9 +2,18 @@
 #include <stdint.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <malloc.h>
 
 typedef uint32_t	u32;
 typedef uint8_t		u8;
+typedef uint8_t		uchar;
+
+#define USE_HOSTCC
+#include "hash.h"
+#include "hw_sha.h"
+
 
 #define BIT(__x)	(1UL << (__x))
 
