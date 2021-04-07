@@ -18,13 +18,6 @@
 
 #include "aspeed_hace.h"
 
-#define RAM_BASE 0x90000000
-#define RAM_SIZE 0x08000000
-#define DEST_BUF (RAM_BASE + RAM_SIZE - 64)
-
-#define SG_BUF_OFFSET (RAM_SIZE - 0x1000)
-#define SG_BUF (RAM_BASE + SG_BUF_OFFSET)
-
 static int ast_hace_wait_isr(u32 reg, u32 flag, int timeout_us)
 {
 	u32 val;
