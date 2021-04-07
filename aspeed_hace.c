@@ -18,6 +18,13 @@
 
 #include "aspeed_hace.h"
 
+#define RAM_BASE 0x90000000
+#define RAM_SIZE 0x08000000
+#define DEST_BUF (RAM_BASE + RAM_SIZE - 64)
+
+#define SG_BUF_OFFSET (RAM_SIZE - 0x1000)
+#define SG_BUF (RAM_BASE + SG_BUF_OFFSET)
+
 static int ast_hace_wait_isr(u32 reg, u32 flag, int timeout_us)
 {
 	u32 val;
@@ -164,7 +171,6 @@ int hw_sha_finish(struct hash_algo *algo, void *ctx, void *dest_buf,
 		     int size)
 {
 	struct aspeed_hash_ctx *hash_ctx = ctx;
-	void *digest = NULL;
 	int rc;
 
 	if (size < hash_ctx->digest_size) {
@@ -172,24 +178,13 @@ int hw_sha_finish(struct hash_algo *algo, void *ctx, void *dest_buf,
 		rc = -EINVAL;
 		goto cleanup;
 	}
-	digest = memalign(8, hash_ctx->digest_size);
-	
-	if (digest == NULL) {
-		debug("HACE error: Cannot allocate memory for digest buffer\n");
-		rc = -ENOMEM;
-		goto cleanup;
-	}
 
-	rc = aspeed_sg_digest(hash_ctx->sg_tbl, hash_ctx->sg_num,
-						  hash_ctx->len, digest, hash_ctx->method);
+	rc = aspeed_sg_digest(SG_BUF, hash_ctx->sg_num,
+						  hash_ctx->len, dest_buf, hash_ctx->method);
 	if (rc)
 		debug("HACE Scatter-Gather failure\n");
-	else
-		memcpy(dest_buf, digest, hash_ctx->digest_size);
 
 cleanup:
-	if (digest)
-		free(digest);
 	free(ctx);
 
 	return rc;

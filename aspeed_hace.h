@@ -53,7 +53,7 @@
 struct aspeed_sg_list {
 	u32 len;
 	u32 phy_addr;
-} __packed;
+};
 
 struct aspeed_hash_ctx {
 	struct aspeed_sg_list sg_tbl[MAX_SG_32];

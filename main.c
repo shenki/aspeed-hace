@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "common.h"
+#include "aspeed_hace.h"
+
 #define ASPEED_IO_BASE 0x10000000
 #define ASPEED_IO_SZ   0x0f000000
 
@@ -37,6 +40,45 @@ static const uint8_t test_input_deadbeef[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD
 #define RAM_SIZE 0x08000000
 #define DEST_BUF (RAM_BASE + RAM_SIZE - 64)
 
+#define SG_BUF_OFFSET (RAM_SIZE - 0x1000)
+#define SG_BUF (RAM_BASE + SG_BUF_OFFSET)
+// sizeof 272
+
+static int do_sha_sg(size_t length, void *buf) {
+	struct hash_algo algo = { .name = "sha512"};
+	void *ctx;
+	int rc;
+	rc = hw_sha_init(&algo, &ctx);
+	if (rc) {
+		printf("error in hw_sha_init: %s\n", strerror(rc));
+		return -1;
+	}
+#if 0
+	printf("Moving ctx from %p to %p\n", ctx, buf + SG_BUF_OFFSET);
+	memcpy(buf + SG_BUF_OFFSET, ctx, sizeof(struct aspeed_hash_ctx));
+	ctx = buf + SG_BUF_OFFSET;
+#endif
+	hw_sha_update(&algo, ctx, (void *)RAM_BASE, length, 0);
+	if (rc) {
+		printf("error in hw_sha_update: %s\n", strerror(rc));
+		return -1;
+	}
+	hw_sha_update(&algo, ctx, (void *)RAM_BASE+length*2, length, 1);
+	if (rc) {
+		printf("error in hw_sha_update: %s\n", strerror(rc));
+		return -1;
+	}
+
+	memcpy(buf + SG_BUF_OFFSET, ctx, sizeof(struct aspeed_hash_ctx));
+	hw_sha_finish(&algo, ctx, (void *)DEST_BUF, 64);
+	if (rc) {
+		printf("error in hw_sha_finish: %s\n", strerror(rc));
+		return -1;
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	int i;
@@ -47,7 +89,7 @@ int main(int argc, char **argv)
 	const void *test_input;
 	size_t length;
 
-	if (argc == 2) {
+	if (0 && argc == 2) {
 		printf("Using file '%s' as test vector\n", argv[1]);
 		file_fd = open(argv[1], O_RDONLY);
 		if (file_fd == -1)
@@ -81,9 +123,21 @@ int main(int argc, char **argv)
 		errx(1, "ram map failed");
 	printf("copying %d bytes from %p to %p\n", length, test_input, buf);
 	memcpy(buf, test_input, length);
+	memcpy(buf+length, test_input, length);
+	memcpy(buf+length*2, test_input, length);
+	memcpy(buf+length*3, test_input, length);
 
-	hw_sha512((void *)RAM_BASE, length, (void *)DEST_BUF, 1024);
+	if (argc > 1) {
+		if (strcmp(argv[argc - 1], "--sg") == 0) {
+			printf("Running in scatter-gather mode.\n");
+			do_sha_sg(length, buf);
+		}
+	} else {
+		printf("Running in direct mode.\n");
+		hw_sha512((void *)RAM_BASE, length, (void *)DEST_BUF, 1024);
+	}
 
+	printf("Result:\n");
 	for (i = 0; i < 64; i++) {
 		printf("%02x", buf[RAM_SIZE - 64 +i]);
 	}
