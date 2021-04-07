@@ -20,6 +20,12 @@ $ echo -n -e '\xde\xad\xbe\xef\xde\xad\xbe\xef' | dd of=/tmp/test
 $ sha512sum /tmp/test
 2338705c3d1dd43a6e06c7dacace1a929a7ceec44473af1c7b3700df891cdd803c8cd85f9ebbb88c1b55d52a89b6a7feeb18d6a1dca05d2d39ace7d90928a5fb  /tmp/test
 ```
+### Benchmarking
+
+The 'plot.py' program can be used to benchmark the HACE against a userspace
+sha512sum.
+
+![Benchmark](plot.png)
 
 ### Licence
 
